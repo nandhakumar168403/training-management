@@ -1,0 +1,23 @@
+{
+  "name": "training-management-server",
+  "type": "module",
+  "scripts": {
+    "dev": "nodemon src.js",
+    "start": "node src.js",
+    "seed": "node seed.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.2",
+    "connect-mongo": "^5.1.0",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.1",
+    "express": "^5.1.0",
+    "express-session": "^1.18.2",
+    "mongoose": "^8.18.0",
+    "morgan": "^1.10.0",
+    "training-management-pro": "file:.."
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.10"
+  }
+}
