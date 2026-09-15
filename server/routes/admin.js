@@ -1,17 +1,43 @@
-r.get('/students', async (req, res) => {
-  const filter = req.query.status ? { status: req.query.status } : {};
+import { Router } from 'express';
 
-  res.json({
-    students: await Student.find(filter)
+import { requireAdmin } from '../middleware/auth.js';
+
+import {
+  Student,
+  Trainer,
+  Attendance,
+  Course
+} from '../models.js';
+
+import { toCsv } from '../utils/csv.js';
+
+const r = Router();
+
+// Protect all admin routes
+r.use(requireAdmin);
+
+// Get all students
+r.get('/students', async (req, res, next) => {
+  try {
+    const filter = req.query.status
+      ? { status: req.query.status }
+      : {};
+
+    const students = await Student.find(filter)
       .populate('courseId', 'name')
       .populate('trainerId', 'name')
       .sort({ createdAt: -1 })
-      .lean()
-  });
+      .lean();
+
+    res.json({ students });
+  } catch (error) {
+    next(error);
+  }
 });
 
-// Export route must come BEFORE /students/:id
-r.get('/students/export', async (req, res) => {
+// Export students
+// This route must come before /students/:id
+r.get('/students/export', async (req, res, next) => {
   try {
     const students = await Student.find()
       .populate('courseId', 'name')
@@ -51,32 +77,50 @@ r.get('/students/export', async (req, res) => {
     res.send(toCsv(rows));
   } catch (error) {
     console.error('Student export error:', error);
-    res.status(500).json({
-      message: 'Student export failed'
-    });
+    next(error);
   }
 });
 
-// Dynamic ID route must come AFTER /students/export
-r.get('/students/:id', async (req, res) => {
-  const student = await Student.findById(req.params.id)
-    .populate('courseId', 'name')
-    .populate('trainerId', 'name')
-    .lean();
+// Get a single student by ID
+// This route must come after /students/export
+r.get('/students/:id', async (req, res, next) => {
+  try {
+    const student = await Student.findById(req.params.id)
+      .populate('courseId', 'name')
+      .populate('trainerId', 'name')
+      .lean();
 
-  if (!student) {
-    return res.status(404).json({
-      message: 'Student not found'
+    if (!student) {
+      return res.status(404).json({
+        message: 'Student not found'
+      });
+    }
+
+    const attendance = await Attendance.find({
+      studentId: student._id
+    })
+      .populate('courseId', 'name')
+      .populate('trainerId', 'name')
+      .sort({ attendanceDate: -1 })
+      .lean();
+
+    res.json({
+      student,
+      attendance
     });
+  } catch (error) {
+    next(error);
   }
-
-  const attendance = await Attendance.find({
-    studentId: student._id
-  })
-    .populate('courseId', 'name')
-    .populate('trainerId', 'name')
-    .sort({ attendanceDate: -1 })
-    .lean();
-
-  res.json({ student, attendance });
 });
+
+// Error handler
+r.use((error, req, res, next) => {
+  console.error('Admin route error:', error);
+
+  res.status(500).json({
+    message: 'Internal server error'
+  });
+});
+
+// Important: export the router as default
+export default r;
