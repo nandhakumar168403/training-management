@@ -17,6 +17,120 @@ const r = Router();
 // Protect all admin routes
 r.use(requireAdmin);
 
+/*
+|--------------------------------------------------------------------------
+| ADMIN DASHBOARD
+|--------------------------------------------------------------------------
+*/
+
+r.get('/dashboard', async (req, res, next) => {
+  try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    const [
+      studentsCount,
+      trainersCount,
+      coursesCount,
+      todayAttendanceCount
+    ] = await Promise.all([
+      Student.countDocuments(),
+      Trainer.countDocuments(),
+      Course.countDocuments(),
+      Attendance.countDocuments({
+        attendanceDate: {
+          $gte: today,
+          $lt: tomorrow
+        }
+      })
+    ]);
+
+    return res.status(200).json({
+      students: studentsCount,
+      trainers: trainersCount,
+      courses: coursesCount,
+      todayAttendance: todayAttendanceCount
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/*
+|--------------------------------------------------------------------------
+| TRAINERS
+|--------------------------------------------------------------------------
+*/
+
+// Get all trainers
+r.get('/trainers', async (req, res, next) => {
+  try {
+    const trainers = await Trainer.find()
+      .sort({ createdAt: -1 })
+      .lean();
+
+    return res.status(200).json({
+      trainers
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/*
+|--------------------------------------------------------------------------
+| ATTENDANCE
+|--------------------------------------------------------------------------
+*/
+
+// Get all attendance records
+r.get('/attendance', async (req, res, next) => {
+  try {
+    const attendance = await Attendance.find()
+      .populate('studentId', 'name email')
+      .populate('courseId', 'name')
+      .populate('trainerId', 'name')
+      .sort({ attendanceDate: -1 })
+      .lean();
+
+    return res.status(200).json({
+      attendance
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/*
+|--------------------------------------------------------------------------
+| COURSES
+|--------------------------------------------------------------------------
+*/
+
+// Get all courses
+r.get('/courses', async (req, res, next) => {
+  try {
+    const courses = await Course.find()
+      .sort({ createdAt: -1 })
+      .lean();
+
+    return res.status(200).json({
+      courses
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/*
+|--------------------------------------------------------------------------
+| STUDENTS
+|--------------------------------------------------------------------------
+*/
+
 // Get all students
 r.get('/students', async (req, res, next) => {
   try {
@@ -30,13 +144,15 @@ r.get('/students', async (req, res, next) => {
       .sort({ createdAt: -1 })
       .lean();
 
-    res.status(200).json({ students });
+    return res.status(200).json({
+      students
+    });
   } catch (error) {
     next(error);
   }
 });
 
-// Export all students
+// Export students as CSV
 // This route must come before /students/:id
 r.get('/students/export', async (req, res, next) => {
   try {
@@ -63,13 +179,19 @@ r.get('/students/export', async (req, res, next) => {
         student.courseId?.name || '',
         student.preferredTiming || '',
         student.joiningDate
-          ? new Date(student.joiningDate).toISOString().slice(0, 10)
+          ? new Date(student.joiningDate)
+              .toISOString()
+              .slice(0, 10)
           : '',
         student.status || ''
       ])
     ];
 
-    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader(
+      'Content-Type',
+      'text/csv; charset=utf-8'
+    );
+
     res.setHeader(
       'Content-Disposition',
       'attachment; filename="students-details.csv"'
@@ -122,7 +244,12 @@ r.get('/students/:id', async (req, res, next) => {
   }
 });
 
-// Admin route error handler
+/*
+|--------------------------------------------------------------------------
+| ERROR HANDLER
+|--------------------------------------------------------------------------
+*/
+
 r.use((error, req, res, next) => {
   console.error('Admin route error:', error);
 
@@ -135,5 +262,10 @@ r.use((error, req, res, next) => {
   });
 });
 
-// Required because src.js imports admin as default
+/*
+|--------------------------------------------------------------------------
+| DEFAULT EXPORT
+|--------------------------------------------------------------------------
+*/
+
 export default r;
