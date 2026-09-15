@@ -19,7 +19,7 @@ r.use(requireAdmin);
 
 /*
 |--------------------------------------------------------------------------
-| ADMIN DASHBOARD
+| DASHBOARD
 |--------------------------------------------------------------------------
 */
 
@@ -48,7 +48,17 @@ r.get('/dashboard', async (req, res, next) => {
       })
     ]);
 
+    const dashboard = {
+      students: studentsCount,
+      trainers: trainersCount,
+      courses: coursesCount,
+      todayAttendance: todayAttendanceCount
+    };
+
     return res.status(200).json({
+      dashboard,
+
+      // Direct fields are also returned for frontend compatibility
       students: studentsCount,
       trainers: trainersCount,
       courses: coursesCount,
@@ -152,6 +162,12 @@ r.get('/students', async (req, res, next) => {
   }
 });
 
+/*
+|--------------------------------------------------------------------------
+| EXPORT STUDENTS
+|--------------------------------------------------------------------------
+*/
+
 // Export students as CSV
 // This route must come before /students/:id
 r.get('/students/export', async (req, res, next) => {
@@ -203,6 +219,12 @@ r.get('/students/export', async (req, res, next) => {
     next(error);
   }
 });
+
+/*
+|--------------------------------------------------------------------------
+| GET SINGLE STUDENT
+|--------------------------------------------------------------------------
+*/
 
 // Get one student by ID
 // This route must come after /students/export
