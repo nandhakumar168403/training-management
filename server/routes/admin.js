@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import mongoose from 'mongoose';
 
 import { requireAdmin } from '../middleware/auth.js';
 
@@ -29,13 +30,13 @@ r.get('/students', async (req, res, next) => {
       .sort({ createdAt: -1 })
       .lean();
 
-    res.json({ students });
+    res.status(200).json({ students });
   } catch (error) {
     next(error);
   }
 });
 
-// Export students
+// Export all students
 // This route must come before /students/:id
 r.get('/students/export', async (req, res, next) => {
   try {
@@ -54,38 +55,46 @@ r.get('/students/export', async (req, res, next) => {
         'Joining Date',
         'Status'
       ],
-      ...students.map((s) => [
-        s.name || '',
-        s.email || '',
-        s.phoneNumber || '',
-        s.location || '',
-        s.courseId?.name || '',
-        s.preferredTiming || '',
-        s.joiningDate
-          ? new Date(s.joiningDate).toISOString().slice(0, 10)
+      ...students.map((student) => [
+        student.name || '',
+        student.email || '',
+        student.phoneNumber || '',
+        student.location || '',
+        student.courseId?.name || '',
+        student.preferredTiming || '',
+        student.joiningDate
+          ? new Date(student.joiningDate).toISOString().slice(0, 10)
           : '',
-        s.status || ''
+        student.status || ''
       ])
     ];
 
-    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader(
       'Content-Disposition',
       'attachment; filename="students-details.csv"'
     );
 
-    res.send(toCsv(rows));
+    return res.status(200).send(toCsv(rows));
   } catch (error) {
     console.error('Student export error:', error);
     next(error);
   }
 });
 
-// Get a single student by ID
+// Get one student by ID
 // This route must come after /students/export
 r.get('/students/:id', async (req, res, next) => {
   try {
-    const student = await Student.findById(req.params.id)
+    const { id } = req.params;
+
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({
+        message: 'Invalid student ID'
+      });
+    }
+
+    const student = await Student.findById(id)
       .populate('courseId', 'name')
       .populate('trainerId', 'name')
       .lean();
@@ -104,7 +113,7 @@ r.get('/students/:id', async (req, res, next) => {
       .sort({ attendanceDate: -1 })
       .lean();
 
-    res.json({
+    return res.status(200).json({
       student,
       attendance
     });
@@ -113,14 +122,18 @@ r.get('/students/:id', async (req, res, next) => {
   }
 });
 
-// Error handler
+// Admin route error handler
 r.use((error, req, res, next) => {
   console.error('Admin route error:', error);
 
-  res.status(500).json({
+  if (res.headersSent) {
+    return next(error);
+  }
+
+  return res.status(500).json({
     message: 'Internal server error'
   });
 });
 
-// Important: export the router as default
+// Required because src.js imports admin as default
 export default r;
